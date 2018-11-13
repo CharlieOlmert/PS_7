@@ -1,0 +1,184 @@
+---
+title: "App Data Prep"
+author: "Miranda Lupion"
+date: "11/12/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, error = FALSE, message = FALSE, warning = FALSE)
+
+# Load libraries
+library(tidyverse)
+library(knitr)
+library(fs)
+library(stringr)
+library(janitor)
+library(rebus)
+library(scales)
+
+# Revive the function that turns NAs into 0s in advance of the question 
+
+na_zero <- function (x) {
+  for (i in seq_along(x)) {
+    x[is.na(x)] <- 0
+    return(x)
+  }
+}
+
+```
+
+
+```{r data download, cache = TRUE}
+# Download the file
+
+download.file(url = "https://goo.gl/ZRCBda",
+              destfile = "mt_2_2018-live-poll-results-master.zip",
+              mode = "wb")
+
+# Unzip the file
+
+unzip("mt_2_2018-live-poll-results-master.zip")
+
+# Delete the zip file
+
+file_delete("mt_2_2018-live-poll-results-master.zip")
+```
+
+```{r data prep}
+
+file_names <-dir_ls("2018-live-poll-results-master/data/")
+
+# Read in all the files into one big tibble.
+# Create empty columns for variables I will need 
+
+master <- map_dfr(file_names, read_csv, .id = "source") %>%
+  mutate(state_race_wave = "", state = "", wave = "", race_type = "", district = "", district_full = "") 
+
+# Start by creating a variable, state_race_wave,
+# which will help me get the other variable I need
+# Remove the header and .csv extension from the file names
+
+master$state_race_wave <- str_remove(master$source, pattern = "2018-live-poll-results-master/data/elections-poll-") 
+master$state_race_wave <- str_remove(master$state_race_wave, pattern = ".csv")
+
+# State variable
+# Subset only the state names and save them to my state variable
+
+master$state <- str_sub(master$state_race_wave, 1,2)
+
+# Wave variable
+# Subset only the wave numbers and save them to my state variable
+
+master$wave <- str_sub(master$state_race_wave, -1)
+
+# District variable
+# Subset only the district numbers and save them to my state variable
+# When the race is not a house race and thus does not have a district, make that clear 
+
+master$district <- str_sub(master$state_race_wave, 3,4)
+master$district <- str_replace_all(master$district, pattern = fixed("go"), replacement = "gov")
+master$district <- str_replace_all(master$district, pattern = fixed("se"), replacement = "senate")
+
+# Race type variable
+# Replace any entries in district which has exactly two characters (i.e. the district number) with house 
+
+master$race_type <- str_replace_all(master$district, pattern =  exactly(ANY_CHAR %R% ANY_CHAR), replacement = "house")
+
+# District full variable
+# Obtain the state and numerical district codes and paste a - in between them
+# Make them uppercase 
+
+master$district_full <- str_to_upper(str_c(master$state, master$district, sep = "-"))
+
+
+```
+
+
+```{r join data}
+
+# Select all the polls that are wave 3
+# Use count to generate a list of distinct values for this group
+
+wave_three <- master %>%
+  filter(wave == 3) %>%
+  group_by(state_race_wave, district_full) %>%
+  count()
+
+
+# Filter to include the polls that lack a wave three 
+# and that don't already have a poll in the wave three group
+# Use count to generate a list of distinct values for this group
+# which I can then compare with the list of distinct values from the other group 
+
+wave_other <- master %>%
+  filter(wave != 3) %>%
+  group_by(state_race_wave, district_full) %>%
+  count() %>%
+  anti_join(wave_three, by = "district_full")
+
+
+# Data I want to examine filtered to include only the latest polls
+
+polling_data <- master %>%
+  select(source, response, educ, ager, FEMINISM, COAL, IMPEACH, gender, race_eth, state_race_wave, wave, race_type, district_full) %>%
+  group_by(state_race_wave) %>%
+  filter(state_race_wave %in% c(wave_three$state_race_wave) | 
+           state_race_wave %in% c(wave_other$state_race_wave)) 
+
+
+# Create the poll data
+# Select the vairables I need for the question
+# Filter to only include the latest version of the poll, meaning wave is 3 
+# If there is no version of the poll that is wave 3, include the latest version of that poll
+# Group_by district_full and response 
+# Tally using a final weight for each response for each poll 
+# Use spread to make the responses your variables and values your observations
+
+
+latest_polls <- master %>%
+  select(response, final_weight, district_full, state_race_wave, race_type, wave) %>%
+  group_by(state_race_wave) %>%
+  filter(state_race_wave %in% c(wave_three$state_race_wave) | 
+           state_race_wave %in% c(wave_other$state_race_wave)) %>%
+  group_by(district_full, response) %>%
+  tally(wt =  final_weight) %>%
+  spread(key = response, value = n) 
+
+
+latest_polls <- na_zero(latest_polls)
+
+# Calculate the total number of responses, including those for third party candidates
+# Save this to a new variable weighted_total
+# Calculate the Republican advantage 
+# Save this to a new variable, rep_adv
+# Select the variables I will use in the shiny app
+
+latest_polls <- latest_polls %>%
+  mutate(weighted_total = Dem + Rep + Und + `3` + `4` +`5` + `6`) %>%
+  mutate(rep_adv = (Rep - Dem)*100/weighted_total) %>%
+  select(district_full, Dem, Rep, rep_adv)
+
+
+# Create the results data
+# Read in the csv file with the data (it includes the senate and gov races, which I added by hand)
+# Select the variables I need
+# Create two new variables, total and rep_adv
+
+results <- read_csv("2018 House Popular Vote Tracker.csv") %>%
+  select(State, district_full, Party, Dem, Rep, Other) %>%
+  mutate(total = Dem + Rep + Other, rep_adv = (Rep-Dem)*100/total) 
+
+# Join the poll data to the results data by district
+# To distinguish between duplicate variables, use the suffixes _polls and _results
+# I define accuracy as 100 minus the difference between the Republican advantage in the polls and actual republican
+# advantage. So the closer the score to 100, the more accurage
+
+joined_master <- left_join(latest_polls, results, by = "district_full", suffix = c("_polls", "_results")) %>%
+  mutate("accuracy" = 100 - abs(rep_adv_polls - rep_adv_results))
+
+
+shiny_data <- left_join(polling_data, joined_master, by = "district_full")
+
+```
+
