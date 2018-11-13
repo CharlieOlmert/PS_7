@@ -182,3 +182,18 @@ shiny_data <- left_join(polling_data, joined_master, by = "district_full")
 
 ```
 
+```{r modeling}
+
+
+shiny_data <- shiny_data %>%
+  filter(!is.na(gender), !is.na(response))
+
+shiny_data$gender <- is.factor(shiny_data$gender)
+shiny_data$COAL <- is.factor(shiny_data$COAL)
+
+
+lm(accuracy ~ COAL, data = shiny_data)
+
+
+```
+
