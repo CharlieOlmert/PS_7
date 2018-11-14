@@ -121,7 +121,7 @@ wave_other <- master %>%
 # Data I want to examine filtered to include only the latest polls
 
 polling_data <- master %>%
-select(source, response, educ, ager, gender, race_eth, state_race_wave, wave, race_type, district_full, APPKAV, likely) %>%
+select(source, response, educ, ager, gender, race_eth, state_race_wave, wave, race_type, district_full, file_race_white, likely) %>%
 group_by(state_race_wave) %>%
 filter(state_race_wave %in% c(wave_three$state_race_wave) | 
       state_race_wave %in% c(wave_other$state_race_wave)) 
@@ -206,16 +206,113 @@ education_variable <- joined_master %>%
   count(educ) %>%
   filter(educ == "college educated") %>%
   mutate(per_college_ed = n*100/total_interviews) %>%
+  ungroup() %>%
   select(district_full, per_college_ed)
 
-per_young_people <- 
+young_variable <- joined_master %>%
+  select(district_full, total_interviews, ager) %>%
+  group_by(district_full, total_interviews) %>%
+  count(ager) %>%
+  filter(ager == "18 to 34") %>%
+  mutate(per_young = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_young)
   
-per_female <-  
+female_variable <-  joined_master %>%
+  select(district_full, total_interviews, gender) %>%
+  group_by(district_full, total_interviews) %>%
+  count(gender) %>%
+  filter(gender == "Female") %>%
+  mutate(per_female = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_female)
 
-per_non_white <-
+hispanic_variable <- joined_master %>%
+  select(district_full, total_interviews, race_eth) %>%
+  group_by(district_full, total_interviews) %>%
+  count(race_eth) %>%
+  filter(race_eth == "Hispanic") %>%
+  mutate(per_hispanic = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_hispanic)
   
-per_likely <-   
-  
+black_variable <- joined_master %>%
+  select(district_full, total_interviews, race_eth) %>%
+  group_by(district_full, total_interviews) %>%
+  count(race_eth) %>%
+  filter(race_eth == "Black") %>%
+  mutate(per_black = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_black)
+
+
+white_variable <- joined_master %>%
+  select(district_full, total_interviews, file_race_white) %>%
+  group_by(district_full, total_interviews) %>%
+  count(file_race_white) %>%
+  filter(file_race_white == "White") %>%
+  mutate(per_white = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_white)
+
+non_white_variable <- joined_master %>%
+  select(district_full, total_interviews, file_race_white) %>%
+  group_by(district_full, total_interviews) %>%
+  count(file_race_white) %>%
+  filter(file_race_white == "Non-White") %>%
+  mutate(per_nonwhite = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_nonwhite)
+
+likely_variable <- joined_master %>%
+  select(district_full, total_interviews, likely) %>%
+  group_by(district_full, total_interviews) %>%
+  mutate(likely = case_when(
+    likely %in% c("Almost certain", "Very likely") ~ "high likelihood",
+    likely == "Somewhat likely" ~ "Somewhat likely",
+    likely == "Not at all likely" ~ "Not at all likely", 
+    likely == "Already voted" ~ "Already voted",
+    likely == "[DO NOT READ] Don't know/Refused" ~ "no data", 
+    likely == "Not very likely" ~ "Not very likely"
+  )) %>%
+  count(likely) %>%
+  filter(likely == "high likelihood") %>%
+  mutate(per_likely = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_likely)  
+
+
+early_voter_variable <- joined_master %>%
+  select(district_full, total_interviews, likely) %>%
+  group_by(district_full, total_interviews) %>%
+  mutate(likely = case_when(
+    likely %in% c("Almost certain", "Very likely") ~ "high likelihood",
+    likely == "Somewhat likely" ~ "Somewhat likely",
+    likely == "Not at all likely" ~ "Not at all likely", 
+    likely == "Already voted" ~ "Already voted",
+    likely == "[DO NOT READ] Don't know/Refused" ~ "no data", 
+    likely == "Not very likely" ~ "Not very likely"
+  )) %>%
+  count(likely) %>%
+  filter(likely == "Already voted") %>%
+  mutate(per_early = n*100/total_interviews) %>%
+  ungroup() %>%
+  select(district_full, per_early)  
+
+
+shiny_data <- joined_master %>%
+  select(district_full, rep_adv_polls, State, Party, rep_adv_results, accuracy) %>%
+  unique() %>%
+  left_join(education_variable, by = "district_full") %>%
+  left_join(young_variable, by = "district_full") %>%
+  left_join(female_variable, by = "district_full") %>%
+  left_join(hispanic_variable, by = "district_full") %>%
+  left_join(black_variable, by = "district_full") %>%
+  left_join(white_variable, by = "district_full") %>%
+  left_join(non_white_variable, by = "district_full") %>%
+  left_join(likely_variable, by = "district_full") %>%
+  left_join(early_voter_variable, by = "district_full")
+
 ```
 
 
