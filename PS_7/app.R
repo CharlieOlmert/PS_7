@@ -28,14 +28,14 @@ colnames(app_data)[colnames(app_data)=="rep_adv_results"] <- "Actual"
 colnames(app_data)[colnames(app_data)=="district_full"] <- "Race"
 
 
-v_options <- c("Percent of sample that's college educated" = "per_college_ed", 
-                      "Percent of sample that's between 18 and 25" = "per_young",
-                      "Percent of sample that's hispanic" = "per_hispanic", 
-                      "Percent of sample that's black" = "per_black", 
-                      "Percent of sample that's white" = "per_white",
-                      "Percent of sample that's not white" = "per_nonwhite",
-                      "Percent of sample who are likely voters" = "per_likely",
-                      "Percent of sample who voted early" = "per_early")
+v_options <- c("Percent college educated" = "per_college_ed", 
+                      "Percent between 18 and 25" = "per_young",
+                      "Percent hispanic" = "per_hispanic", 
+                      "Percent black" = "per_black", 
+                      "Percent white" = "per_white",
+                      "Percent not white" = "per_nonwhite",
+                      "Percent likely voters" = "per_likely",
+                      "Percent early voters" = "per_early")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -54,13 +54,15 @@ ui <- fluidPage(
       
       # Show a plot of the generated distribution
       mainPanel(
-        plotlyOutput(outputId = "scatterplot1"),
-        plotOutput(outputId = "scatterplot2"),
-        textOutput(outputId = "stats"),
+        
+        tabsetPanel(type = "tabs",
+                    tabPanel("Scatterplot", plotlyOutput("scatterplot1")),
+                    tabPanel("Linear regression plot", plotOutput("scatterplot2")),
+                    tabPanel("Model details", textOutput("stats"))),
+        
         h3("Source"),
         p("The New York Times Upshot/Sienna Poll and The New York Times Election Results Coverage"))))
-
-# Define server logic required to draw a histogram
+        
 server <- function(input, output) {
    
   output$scatterplot1 <- renderPlotly({
@@ -69,7 +71,7 @@ server <- function(input, output) {
                     aes_string(x = input$variable, y = "accuracy", text = "Race")) + 
                geom_point(aes_string(color = "Party")) +
                labs(x = names(v_options[which(v_options == input$variable)]), 
-                    y = "Poll accuracy", title = "Considering sample demographics and poll accuracy: Scatterplot") +
+                    y = "Poll accuracy", title = "Sample demographics and poll accuracy") +
                theme(text = element_text(size = 10), 
                      axis.text.y = element_text(angle = 90, hjust = 1)) +
                scale_color_discrete(name = "Winning party")) %>% 
@@ -83,7 +85,8 @@ server <- function(input, output) {
            title = "Considering sample demographics and poll accuracy: Linear regression")
   })
 
-  output$stats <- renderText({
+  output$stats <- renderPrint({
+
   
 })
   
