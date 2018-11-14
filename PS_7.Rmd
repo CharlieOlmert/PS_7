@@ -313,6 +313,8 @@ shiny_data <- joined_master %>%
   left_join(likely_variable, by = "district_full") %>%
   left_join(early_voter_variable, by = "district_full")
 
+
+write_rds(shiny_data, "shiny_data.rds")
 ```
 
 
@@ -320,11 +322,11 @@ shiny_data <- joined_master %>%
 ```{r modeling}
 
 
- # let the user choose the district 
+#let the user choose the district 
 
-#m2 <- lm(accuracy ~ race_eth, data = shiny_data) #let the user choose the variable to 
+m2 <- lm(accuracy ~ per_likely, data = shiny_data) #let the user choose the variable to 
 
-#summary(m2)
+summary(m2)
 
 # For each election aggregate score for like percent black 
 
