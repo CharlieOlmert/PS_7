@@ -11,7 +11,7 @@ library(scales)
 library(ggrepel)
 
 # Load data from the rds
-app_data <- read_rds("shiny_data.rds")
+app_data <- read_rds("shiny_data.rds") 
 
 # Change D and R to be Democratic and Republican
 
@@ -37,7 +37,21 @@ v_options <- c("Percent college educated" = "per_college_ed",
                       "Percent likely voters" = "per_likely",
                       "Percent early voters" = "per_early")
 
-# Define UI for application that draws a histogram
+
+na_zero <- function (x) {
+  for (i in seq_along(x)) {
+    x[is.na(x)] <- 0
+    return(x)
+  }
+}
+
+
+# NA's here represent 0
+
+app_data$per_early <- na_zero(app_data$per_early)
+
+
+
 ui <- fluidPage(
    
    # Application title
@@ -60,10 +74,19 @@ ui <- fluidPage(
                     tabPanel("Linear regression plot", plotOutput("scatterplot2")),
                     tabPanel("Model details", textOutput("stats"))),
         
+        h3("Summary"),
+        p("This application allows the user to see how demographic differences among polls' samples does/does not correlate with the polls accuracy. "),
         h3("Source"),
         p("The New York Times Upshot/Sienna Poll and The New York Times Election Results Coverage"))))
         
 server <- function(input, output) {
+  
+  
+  interactive_model <- reactive({
+   m1 <- lm(accuracy ~ input$variable, data = app_data)
+   summary(m1)
+  })
+  
    
   output$scatterplot1 <- renderPlotly({
     ggplotly(tooltip = c("text", "x", "y"),
@@ -86,7 +109,7 @@ server <- function(input, output) {
   })
 
   output$stats <- renderPrint({
-
+  print(interactive_model())
   
 })
   
