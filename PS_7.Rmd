@@ -121,10 +121,10 @@ wave_other <- master %>%
 # Data I want to examine filtered to include only the latest polls
 
 polling_data <- master %>%
-  select(source, response, educ, ager, FEMINISM, COAL, IMPEACH, gender, race_eth, state_race_wave, wave, race_type, district_full) %>%
-  group_by(state_race_wave) %>%
-  filter(state_race_wave %in% c(wave_three$state_race_wave) | 
-           state_race_wave %in% c(wave_other$state_race_wave)) 
+select(source, response, educ, ager, gender, race_eth, state_race_wave, wave, race_type, district_full, APPKAV, likely) %>%
+group_by(state_race_wave) %>%
+filter(state_race_wave %in% c(wave_three$state_race_wave) | 
+      state_race_wave %in% c(wave_other$state_race_wave)) 
 
 
 # Create the poll data
@@ -167,7 +167,7 @@ latest_polls <- latest_polls %>%
 
 results <- read_csv("2018 House Popular Vote Tracker.csv") %>%
   select(State, district_full, Party, Dem, Rep, Other) %>%
-  mutate(total = Dem + Rep + Other, rep_adv = (Rep-Dem)*100/total) 
+  mutate(total_votes = Dem + Rep + Other, rep_adv = (Rep-Dem)*100/total_votes) 
 
 # Join the poll data to the results data by district
 # To distinguish between duplicate variables, use the suffixes _polls and _results
@@ -178,22 +178,63 @@ joined_master <- left_join(latest_polls, results, by = "district_full", suffix =
   mutate("accuracy" = 100 - abs(rep_adv_polls - rep_adv_results))
 
 
-shiny_data <- left_join(polling_data, joined_master, by = "district_full")
+joined_master <- left_join(polling_data, joined_master, by = "district_full") %>%
+    filter(!is.na(response)) %>%
+    ungroup()
+
+poll_totals <- joined_master %>%
+  group_by(district_full) %>%
+  count() 
+
+joined_master <- left_join(joined_master, poll_totals, by = "district_full") 
+
+colnames(joined_master)[24] <- "total_interviews"
+
 
 ```
+
+
+```{r variable taming}
+
+education_variable <- joined_master %>%
+  mutate(educ = case_when(educ == "[DO NOT READ] Refused" ~ "no data",
+            educ %in% c("Grade school", "High school") ~ "not college educated",
+            educ %in% c("Bachelors' degree", "Graduate or Professional Degree", "Some college or trade school") ~ "college educated"
+  )) %>%
+  select(district_full, educ, total_interviews) %>%
+  group_by(district_full, total_interviews) %>%
+  count(educ) %>%
+  filter(educ == "college educated") %>%
+  mutate(per_college_ed = n*100/total_interviews) %>%
+  select(district_full, per_college_ed)
+
+per_young_people <- 
+  
+per_female <-  
+
+per_non_white <-
+  
+per_likely <-   
+  
+```
+
+
 
 ```{r modeling}
 
 
-shiny_data <- shiny_data %>%
-  filter(!is.na(gender), !is.na(response))
+ # let the user choose the district 
 
-shiny_data$gender <- is.factor(shiny_data$gender)
-shiny_data$COAL <- is.factor(shiny_data$COAL)
+#m2 <- lm(accuracy ~ race_eth, data = shiny_data) #let the user choose the variable to 
 
+#summary(m2)
 
-lm(accuracy ~ COAL, data = shiny_data)
+# For each election aggregate score for like percent black 
 
+# You don't have to weight it Cause it's poll error 
+# I could get both weighted and unweighted
+# aggregate weights for a mean weight for the district. Higher weight = lots of adjustment cause sample not good
+# does variation in the weights explain variation 
 
 ```
 
