@@ -52,7 +52,7 @@ app_data$per_early <- na_zero(app_data$per_early)
 
 
 
-ui <- fluidPage(
+ui <- fluidPage(fluidPage(theme = shinytheme("cerulean")),
    
    # Application title
    titlePanel("Visualizing NYT Polling Accuracy"),
