@@ -322,9 +322,9 @@ write_rds(shiny_data, "shiny_data.rds")
 ```{r modeling}
 
 
-#let the user choose the district 
+#let the user choose the variable 
 
-m2 <- lm(accuracy ~ per_likely, data = shiny_data) #let the user choose the variable to 
+m2 <- lm(accuracy ~ per_black, data = shiny_data) #let the user choose the variable to 
 
 summary(m2)
 

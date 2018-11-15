@@ -80,13 +80,6 @@ ui <- fluidPage(
         p("The New York Times Upshot/Sienna Poll and The New York Times Election Results Coverage"))))
         
 server <- function(input, output) {
-  
-  
-  interactive_model <- reactive({
-   m1 <- lm(accuracy ~ input$variable, data = app_data)
-   summary(m1)
-  })
-  
    
   output$scatterplot1 <- renderPlotly({
     ggplotly(tooltip = c("text", "x", "y"),
@@ -109,7 +102,9 @@ server <- function(input, output) {
   })
 
   output$stats <- renderPrint({
-  print(interactive_model())
+    my_formula <- paste0("accuracy ~ ", input$variable)
+    m1 <- summary(lm(my_formula, data = app_data))
+  print(m1)
   
 })
   
