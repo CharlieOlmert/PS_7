@@ -63,7 +63,10 @@ ui <- fluidPage(fluidPage(theme = shinytheme("cerulean")),
                     label = "Select the sample demographic to analyze",
                     choices = v_options,
                     multiple = FALSE, 
-                    selected = v_options[1])),
+                    selected = v_options[1]),
+        
+        downloadButton(outputId = "download_data", 
+                       label = "Download data")),
       
       # Show a plot of the generated distribution
       mainPanel(
@@ -94,7 +97,14 @@ is_sig  <- reactive({
     }})
 
    
-  output$scatterplot1 <- renderPlotly({
+output$download_data <- downloadHandler(
+  filename = "data.csv",
+  content = function(file) {
+    write.csv(app_data, file)
+  }
+)
+  
+output$scatterplot1 <- renderPlotly({
     ggplotly(tooltip = c("text", "x", "y"),
              ggplot(data = app_data, 
                     aes_string(x = input$variable, y = "accuracy", text = "Race")) + 
