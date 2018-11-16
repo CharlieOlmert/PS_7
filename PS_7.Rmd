@@ -324,9 +324,8 @@ write_rds(shiny_data, "shiny_data.rds")
 
 #let the user choose the variable 
 
-m2 <- lm(accuracy ~ per_black, data = shiny_data) #let the user choose the variable to 
+m2 <- summary(lm(accuracy ~ per_black, data = shiny_data)) #let the user choose the variable to 
 
-summary(m2)
 
 # For each election aggregate score for like percent black 
 

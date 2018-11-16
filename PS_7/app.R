@@ -8,7 +8,6 @@ library(rgdal)
 library(shinythemes)
 library(plotly)
 library(scales)
-library(ggrepel)
 
 # Load data from the rds
 app_data <- read_rds("shiny_data.rds") 
@@ -61,7 +60,7 @@ ui <- fluidPage(fluidPage(theme = shinytheme("cerulean")),
    sidebarLayout(
       sidebarPanel(
         selectInput(inputId = "variable",
-                    label = "Select the demographic to consider",
+                    label = "Select the sample demographic to analyze",
                     choices = v_options,
                     multiple = FALSE, 
                     selected = v_options[1])),
@@ -75,11 +74,25 @@ ui <- fluidPage(fluidPage(theme = shinytheme("cerulean")),
                     tabPanel("Model details", textOutput("stats"))),
         
         h3("Summary"),
-        p("This application allows the user to see how demographic differences among polls' samples does/does not correlate with the polls accuracy. "),
+        p("This application allows the user to see how demographic differences among polls' samples do/do not correlate with the polls accuracy. 
+          Accuracy is the difference between the predicted Republican advantage and the actual Republican advantage subtracted from 100."),
         h3("Source"),
         p("The New York Times Upshot/Sienna Poll and The New York Times Election Results Coverage"))))
         
 server <- function(input, output) {
+  
+is_sig  <- reactive({
+  my_formula <- paste0("accuracy ~ ", input$variable)
+  m1 <- summary(lm(my_formula, data = app_data))
+  fstat <- m1$fstatistic 
+  pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail = F)
+  
+  if (pval < .05) { 
+    is_sig <- "is"
+  } else {
+      is_sig <- "is not"
+    }})
+
    
   output$scatterplot1 <- renderPlotly({
     ggplotly(tooltip = c("text", "x", "y"),
@@ -104,8 +117,20 @@ server <- function(input, output) {
   output$stats <- renderPrint({
     my_formula <- paste0("accuracy ~ ", input$variable)
     m1 <- summary(lm(my_formula, data = app_data))
-  print(m1)
-  
+    fstat <- m1$fstatistic 
+    pval <- pf(fstat[1], fstat[2], fstat[3], lower.tail = F)
+    cat("The multiple R-squared is ") 
+    cat(m1$r.squared)
+    cat(".")
+    cat(" This means that ") 
+    cat((m1$r.squared)*100) 
+    cat(" percent of the variation is explained by this variable. The p-value is ")
+    cat(pval)
+    cat(".")
+    cat(" This means that the result ")
+    cat(is_sig())
+    cat(" statistically significant.")
+    
 })
   
 }
