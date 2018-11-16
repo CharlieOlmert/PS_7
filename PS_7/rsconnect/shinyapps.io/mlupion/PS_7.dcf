@@ -1,0 +1,12 @@
+name: PS_7
+title: PS_7
+username:
+account: mlupion
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 574832
+bundleId: 1703527
+url: https://mlupion.shinyapps.io/PS_7/
+when: 1542328066.9117
+asMultiple: FALSE
+asStatic: FALSE
