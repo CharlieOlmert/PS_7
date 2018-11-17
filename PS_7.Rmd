@@ -32,7 +32,7 @@ na_zero <- function (x) {
 ```{r data download, cache = TRUE}
 # Download the file
 
-download.file(url = "https://goo.gl/ZRCBda",
+download.file(url = "https://github.com/TheUpshot/2018-live-poll-results/archive/master.zip",
               destfile = "mt_2_2018-live-poll-results-master.zip",
               mode = "wb")
 
