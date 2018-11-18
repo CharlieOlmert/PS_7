@@ -7,7 +7,6 @@ library(rsconnect)
 library(shinythemes)
 library(plotly)
 library(scales)
-library(stargazer)
 
 # Load data from the rds
 app_data <- read_rds("shiny_data.rds") 
@@ -77,7 +76,7 @@ ui <- fluidPage(fluidPage(theme = shinytheme("united")),
                     label = "Select the sample demographic to analyze",
                     choices = v_options,
                     multiple = FALSE, 
-                    selected = v_options[1]),
+                    selected = v_options[6]),
         
         # And a button allowing users to download my data and further poke around if they wish 
         
@@ -191,11 +190,11 @@ output$stats <- renderPrint({
     
     
     HTML(paste(tags$ul(
-               tags$li("The correlation coefficient is: ", strong(m1$coefficients[2]), 
+               tags$li("The correlation coefficient is appoximately ", strong(round(m1$coefficients[2], digits = 2)), 
                ". This is the slope of the regression line and means that the variables have a ", weak_strong(), " relationship."),
-               tags$li("The multiple r-squared is: ", strong(m1$r.squared), 
+               tags$li("The multiple r-squared is appoximately ", strong(round(m1$r.squared, digits = 2)), 
                        ". This means that roughly ", round((m1$r.squared)*100, digits = 2), "percent of the variation is explained by this variable." ),
-               tags$li("The p-value is: ", strong(pval), ". This means that the result ", is_sig(), " statistically significant
+               tags$li("The p-value is appoximately ", strong(round(pval, digits = 2)), ". This means that the result ", is_sig(), " statistically significant
                        with respect to a significance level of 0.05."))))
 
     

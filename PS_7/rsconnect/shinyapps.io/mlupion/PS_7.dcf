@@ -5,8 +5,8 @@ account: mlupion
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 574832
-bundleId: 1707596
+bundleId: 1707717
 url: https://mlupion.shinyapps.io/PS_7/
-when: 1542573855.86619
+when: 1542579171.40516
 asMultiple: FALSE
 asStatic: FALSE
