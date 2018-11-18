@@ -8,6 +8,10 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, error = FALSE, message = FALSE, warning = FALSE)
 
+# I realize that data preparation is best done in a script, but I like the ability to break it up
+# by chunks nd isolate certain chunks. That's why I did this data prep in an RMD document. Please forgive
+# me if this is sacreligious. 
+
 # Load libraries
 library(tidyverse)
 library(knitr)
@@ -17,7 +21,7 @@ library(janitor)
 library(rebus)
 library(scales)
 
-# Revive the function that turns NAs into 0s in advance of the question 
+# Revive the function that turns NAs into 0s in advance of the data prep 
 
 na_zero <- function (x) {
   for (i in seq_along(x)) {
@@ -30,6 +34,7 @@ na_zero <- function (x) {
 
 
 ```{r data download, cache = TRUE}
+
 # Download the file
 
 download.file(url = "https://github.com/TheUpshot/2018-live-poll-results/archive/master.zip",
@@ -46,6 +51,10 @@ file_delete("mt_2_2018-live-poll-results-master.zip")
 ```
 
 ```{r data prep}
+
+# This code comes from my answer to midterm 2.
+
+# Create a list of file names
 
 file_names <-dir_ls("2018-live-poll-results-master/data/")
 
@@ -97,6 +106,8 @@ master$district_full <- str_to_upper(str_c(master$state, master$district, sep = 
 
 ```{r join data}
 
+
+# This code comes from my answer to midterm 2.
 # Select all the polls that are wave 3
 # Use count to generate a list of distinct values for this group
 
@@ -118,7 +129,10 @@ wave_other <- master %>%
   anti_join(wave_three, by = "district_full")
 
 
-# Data I want to examine filtered to include only the latest polls
+# Create the polling data containing the demographic variables 
+# that I will examine in the app
+# Select the variables I will compare in the app
+# Filter to include only the latest polls
 
 polling_data <- master %>%
 select(source, response, educ, ager, gender, race_eth, state_race_wave, wave, race_type, district_full, file_race_white, likely) %>%
@@ -127,16 +141,15 @@ filter(state_race_wave %in% c(wave_three$state_race_wave) |
       state_race_wave %in% c(wave_other$state_race_wave)) 
 
 
-# Create the poll data
-# Select the vairables I need for the question
-# Filter to only include the latest version of the poll, meaning wave is 3 
-# If there is no version of the poll that is wave 3, include the latest version of that poll
+# Create the republican advantage data
+# Select only the variable I need
+# Filter to only include the latest version of the poll
 # Group_by district_full and response 
 # Tally using a final weight for each response for each poll 
 # Use spread to make the responses your variables and values your observations
 
 
-latest_polls <- master %>%
+rep_adv_data <- master %>%
   select(response, final_weight, district_full, state_race_wave, race_type, wave) %>%
   group_by(state_race_wave) %>%
   filter(state_race_wave %in% c(wave_three$state_race_wave) | 
@@ -145,8 +158,9 @@ latest_polls <- master %>%
   tally(wt =  final_weight) %>%
   spread(key = response, value = n) 
 
+# Turn NA values into zero in the rep_adv_data 
 
-latest_polls <- na_zero(latest_polls)
+rep_adv_data <- na_zero(rep_adv_data)
 
 # Calculate the total number of responses, including those for third party candidates
 # Save this to a new variable weighted_total
@@ -154,7 +168,7 @@ latest_polls <- na_zero(latest_polls)
 # Save this to a new variable, rep_adv
 # Select the variables I will use in the shiny app
 
-latest_polls <- latest_polls %>%
+rep_adv_data <- rep_adv_data %>%
   mutate(weighted_total = Dem + Rep + Und + `3` + `4` +`5` + `6`) %>%
   mutate(rep_adv = (Rep - Dem)*100/weighted_total) %>%
   select(district_full, Dem, Rep, rep_adv)
@@ -169,24 +183,35 @@ results <- read_csv("2018 House Popular Vote Tracker.csv") %>%
   select(State, district_full, Party, Dem, Rep, Other) %>%
   mutate(total_votes = Dem + Rep + Other, rep_adv = (Rep-Dem)*100/total_votes) 
 
-# Join the poll data to the results data by district
+# Join the republican advantage polling data to the results data by district
 # To distinguish between duplicate variables, use the suffixes _polls and _results
 # I define accuracy as 100 minus the difference between the Republican advantage in the polls and actual republican
 # advantage. So the closer the score to 100, the more accurage
 
-joined_master <- left_join(latest_polls, results, by = "district_full", suffix = c("_polls", "_results")) %>%
+joined_master <- left_join(rep_adv_data, results, by = "district_full", suffix = c("_polls", "_results")) %>%
   mutate("accuracy" = 100 - abs(rep_adv_polls - rep_adv_results))
 
+
+# Join the data frame with the polls demographic variables
+# to the polling and results data.
 
 joined_master <- left_join(polling_data, joined_master, by = "district_full") %>%
     filter(!is.na(response)) %>%
     ungroup()
 
+
+# Create a df that lists the total number of poll respondents per district
+
 poll_totals <- joined_master %>%
   group_by(district_full) %>%
   count() 
 
+# Join this df to the master data frame
+
 joined_master <- left_join(joined_master, poll_totals, by = "district_full") 
+
+
+# Rename the column total interviews
 
 colnames(joined_master)[24] <- "total_interviews"
 
@@ -195,6 +220,14 @@ colnames(joined_master)[24] <- "total_interviews"
 
 
 ```{r variable taming}
+# Education variable
+# Create a data frame that, for each race, lists the percent of the sample with a college education 
+# Collapse the educ variable to three categories: no data, not college educated, college educated
+# Count the total number of each group for each sample
+# Filter to include only the college educated observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per college educated for each district
+# Select only the variables that will be in the final df
 
 education_variable <- joined_master %>%
   mutate(educ = case_when(educ == "[DO NOT READ] Refused" ~ "no data",
@@ -209,6 +242,15 @@ education_variable <- joined_master %>%
   ungroup() %>%
   select(district_full, per_college_ed)
 
+# Young people variable
+# Create a data frame that, for each race, lists the percent of the sample who are ages 18 to 34 
+# Count the total number of each age group for each sample
+# Filter to include only the college educated observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per young for each district
+# Select only the variables that will be in the final df
+
+
 young_variable <- joined_master %>%
   select(district_full, total_interviews, ager) %>%
   group_by(district_full, total_interviews) %>%
@@ -217,7 +259,16 @@ young_variable <- joined_master %>%
   mutate(per_young = n*100/total_interviews) %>%
   ungroup() %>%
   select(district_full, per_young)
-  
+
+# Female variable
+# Create a data frame that, for each race, lists the percent of the sample who is female 
+# Count the total number of each group (male, female) for each sample
+# Filter to include only the female observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per female for each district
+# Select only the variables that will be in the final df
+
+
 female_variable <-  joined_master %>%
   select(district_full, total_interviews, gender) %>%
   group_by(district_full, total_interviews) %>%
@@ -227,6 +278,15 @@ female_variable <-  joined_master %>%
   ungroup() %>%
   select(district_full, per_female)
 
+# Hispanic variable
+# Create a data frame that, for each race, lists the percent of the sample that identifies as Hispanic 
+# Count the total number of each group for each sample
+# Filter to include only the Hispanic observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per Hispanic for each district
+# Select only the variables that will be in the final df
+
+
 hispanic_variable <- joined_master %>%
   select(district_full, total_interviews, race_eth) %>%
   group_by(district_full, total_interviews) %>%
@@ -235,7 +295,15 @@ hispanic_variable <- joined_master %>%
   mutate(per_hispanic = n*100/total_interviews) %>%
   ungroup() %>%
   select(district_full, per_hispanic)
-  
+
+# Black variable
+# Create a data frame that, for each race, lists the percent of the sample that identifies as black 
+# Count the total number of each race/ethnic group for each sample
+# Filter to include only the black observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per black for each district
+# Select only the variables that will be in the final df
+
 black_variable <- joined_master %>%
   select(district_full, total_interviews, race_eth) %>%
   group_by(district_full, total_interviews) %>%
@@ -245,6 +313,13 @@ black_variable <- joined_master %>%
   ungroup() %>%
   select(district_full, per_black)
 
+# White variable
+# Create a data frame that, for each race, lists the percent of the sample that identifies as white  
+# Count the total number of each race/ethnic group for each sample
+# Filter to include only the college educated observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per white for each district
+# Select only the variables that will be in the final df
 
 white_variable <- joined_master %>%
   select(district_full, total_interviews, file_race_white) %>%
@@ -255,6 +330,14 @@ white_variable <- joined_master %>%
   ungroup() %>%
   select(district_full, per_white)
 
+# Non-white variable
+# Create a data frame that, for each race, lists the percent of the sample that does not identify as white
+# Count the total number of each group (white/non-white) for each sample
+# Filter to include only the non-white observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per non-white for each district
+# Select only the variables that will be in the final df
+
 non_white_variable <- joined_master %>%
   select(district_full, total_interviews, file_race_white) %>%
   group_by(district_full, total_interviews) %>%
@@ -263,6 +346,16 @@ non_white_variable <- joined_master %>%
   mutate(per_nonwhite = n*100/total_interviews) %>%
   ungroup() %>%
   select(district_full, per_nonwhite)
+
+# Likely voter variable
+# Create a data frame that, for each race, lists the percent of the sample that is likely to vote 
+# Collapse the likely variable to six categories, combining "almost certain" and "very likely" 
+# into a single level - high likelihood
+# Count the total number of each likely group for each sample
+# Filter to include only the high likelihood observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per likely voters for each district
+# Select only the variables that will be in the final df
 
 likely_variable <- joined_master %>%
   select(district_full, total_interviews, likely) %>%
@@ -281,6 +374,15 @@ likely_variable <- joined_master %>%
   ungroup() %>%
   select(district_full, per_likely)  
 
+# Early voter variable
+# Create a data frame that, for each race, lists the percent of the sample that voted early 
+# Collapse the likely variable to six categories, combining "almost certain" and "very likely" 
+# into a single level - high likelihood
+# Count the total number of each likely group for each sample
+# Filter to include only the already voted observations
+# For each district, divide the number of remaining observations by the total number of observations
+# and multiply this by 100 to get a per early voters for each district
+# Select only the variables that will be in the final df
 
 early_voter_variable <- joined_master %>%
   select(district_full, total_interviews, likely) %>%
@@ -300,6 +402,13 @@ early_voter_variable <- joined_master %>%
   select(district_full, per_early)  
 
 
+# Combine these data frames with the joined_master frame to create a district-level data set
+# (i.e. each observation is a single race)
+# Select only the variables I need 
+# Because the variables selected differ onlt by district (i.e. are the same for each interview) keep only 
+# one set of those variables. Use unique to eliminate multiple sets.
+# Join this set with the above dfs 
+
 shiny_data <- joined_master %>%
   select(district_full, rep_adv_polls, State, Party, rep_adv_results, accuracy) %>%
   unique() %>%
@@ -313,26 +422,10 @@ shiny_data <- joined_master %>%
   left_join(likely_variable, by = "district_full") %>%
   left_join(early_voter_variable, by = "district_full")
 
+# Write the data to an RDS file to use in the app 
 
 write_rds(shiny_data, "shiny_data.rds")
 ```
 
 
-
-```{r modeling}
-
-
-#let the user choose the variable 
-
-m2 <- summary(lm(accuracy ~ per_black, data = shiny_data)) #let the user choose the variable to 
-
-
-# For each election aggregate score for like percent black 
-
-# You don't have to weight it Cause it's poll error 
-# I could get both weighted and unweighted
-# aggregate weights for a mean weight for the district. Higher weight = lots of adjustment cause sample not good
-# does variation in the weights explain variation 
-
-```
 
