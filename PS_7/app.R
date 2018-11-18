@@ -20,12 +20,12 @@ app_data <- app_data %>%
     Party == "R" ~ "Republican"
   )) 
 
-# Change the variable names so that they will look nicer with tooltip in ggplotly
+# Change the variable name so that it looks nicer with tooltip in ggplotly
 
-colnames(app_data)[colnames(app_data)=="rep_adv_polls"] <- "Forecasted"
-colnames(app_data)[colnames(app_data)=="rep_adv_results"] <- "Actual"
 colnames(app_data)[colnames(app_data)=="district_full"] <- "Race"
 
+
+# Create a vector of variable labels to use on the x axis and as choices in the drop down menu
 
 v_options <- c("Percent college educated" = "per_college_ed", 
                       "Percent between 18 and 25" = "per_young",
@@ -37,6 +37,8 @@ v_options <- c("Percent college educated" = "per_college_ed",
                       "Percent early voters" = "per_early")
 
 
+# Revive the na_zero function to replace NAs with 0s in the per early voting column.
+
 na_zero <- function (x) {
   for (i in seq_along(x)) {
     x[is.na(x)] <- 0
@@ -45,18 +47,20 @@ na_zero <- function (x) {
 }
 
 
-# NA's here represent 0
-
 app_data$per_early <- na_zero(app_data$per_early)
 
 
+# Define the UI
+# Use a pretty theme
 
-ui <- fluidPage(fluidPage(theme = shinytheme("cerulean")),
+ui <- fluidPage(fluidPage(theme = shinytheme("united")),
    
    # Application title
+   
    titlePanel("Visualizing NYT Polling Accuracy"),
    
-   # Sidebar with a slider input for number of bins 
+   # Sidebar with a select input function, letting users chose the sample demographic to analyze 
+   
    sidebarLayout(
       sidebarPanel(
         selectInput(inputId = "variable",
@@ -65,25 +69,40 @@ ui <- fluidPage(fluidPage(theme = shinytheme("cerulean")),
                     multiple = FALSE, 
                     selected = v_options[1]),
         
+        # And a button allowing users to download my data and further poke around if they wish 
+        
         downloadButton(outputId = "download_data", 
                        label = "Download data")),
       
-      # Show a plot of the generated distribution
+      # Define the main panel
+      
       mainPanel(
+        
+        # Use a tab layout to separate the various elements
         
         tabsetPanel(type = "tabs",
                     tabPanel("Scatterplot", plotlyOutput("scatterplot1")),
                     tabPanel("Linear regression plot", plotOutput("scatterplot2")),
-                    tabPanel("Model details", textOutput("stats"))),
+                    tabPanel("Model summary", textOutput("stats"))),
+        
+        # Provide users with a summary of the application
         
         h3("Summary"),
         p("This application allows the user to see how demographic differences among polls' samples do/do not correlate with the polls accuracy. 
           Accuracy is the difference between the predicted Republican advantage and the actual Republican advantage subtracted from 100."),
+        
+        # Provide users with information on the data source
+        
         h3("Source"),
         p("The New York Times Upshot/Sienna Poll and The New York Times Election Results Coverage"))))
+
+# Define the server
         
 server <- function(input, output) {
-  
+
+# Create a reactive that changes the printed text from "is significant" to "is not significant" when 
+# the p-value changes according 
+    
 is_sig  <- reactive({
   my_formula <- paste0("accuracy ~ ", input$variable)
   m1 <- summary(lm(my_formula, data = app_data))
@@ -96,6 +115,8 @@ is_sig  <- reactive({
       is_sig <- "is not"
     }})
 
+
+# Define the output for the download data button
    
 output$download_data <- downloadHandler(
   filename = "data.csv",
@@ -103,6 +124,15 @@ output$download_data <- downloadHandler(
     write.csv(app_data, file)
   }
 )
+
+
+# Define the output for the interactive scatterplot
+# Use Plotly and tooltip to allow users to mouse over the points for more information
+# Plot accuracy on the y axis and the user-selected variable on the x-axis
+# Color the points by party and make the axis labels reactive
+# Add some formatting for the plot size and text
+# Change the legend title
+# Remove the ugly Plotly display bar
   
 output$scatterplot1 <- renderPlotly({
     ggplotly(tooltip = c("text", "x", "y"),
@@ -115,16 +145,28 @@ output$scatterplot1 <- renderPlotly({
                      axis.text.y = element_text(angle = 90, hjust = 1)) +
                scale_color_discrete(name = "Winning party")) %>% 
                 config(displayModeBar = FALSE) })
-  
-  output$scatterplot2 <- renderPlot({
+
+# Define the output for the regression plot
+# Use geom smooth to plot the regression line for accuracy and the user selected variable
+# Make the axis labels reactive
+# Add a title
+
+output$scatterplot2 <- renderPlot({
     ggplot(data = app_data, aes_string(x = input$variable, y = "accuracy")) +
       geom_smooth(method = "lm") +
       labs(x = names(v_options[which(v_options == input$variable)]), 
            y = "Poll accuracy",
-           title = "Considering sample demographics and poll accuracy: Linear regression")
+           title = "Regressing accuracy against selected sample demographic")
   })
 
-  output$stats <- renderPrint({
+
+# Define the summary text output
+# Regress accuracy against the user-selected variable
+# Save the summary of the model and extract the p-value from the model
+# Create a reactive text ouput in which the 1) r squared, p value, and significance explanation change 
+# in response to the user selected variable 
+
+output$stats <- renderPrint({
     my_formula <- paste0("accuracy ~ ", input$variable)
     m1 <- summary(lm(my_formula, data = app_data))
     fstat <- m1$fstatistic 
@@ -139,7 +181,7 @@ output$scatterplot1 <- renderPlotly({
     cat(".")
     cat(" This means that the result ")
     cat(is_sig())
-    cat(" statistically significant.")
+    cat(" statistically significant with respect to a significance level of 0.05.")
     
 })
   
